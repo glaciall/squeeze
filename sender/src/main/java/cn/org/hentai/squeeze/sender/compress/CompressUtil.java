@@ -16,10 +16,11 @@ public final class CompressUtil
     public static final String METHOD_ZIP = "zip";
     public static final String METHOD_7ZIP = "7zip";
 
-    public static void compressAndWriteTo(File srcFile, int level, String method, PipedInputStream pis)
+    public static void compressAndConvertTo(String srcFilePath, int level, String method, PipedInputStream pipedReader)
     {
-        if (METHOD_ZIP.equals(method)) compressAsZip(srcFile, level, pis);
-        else if (METHOD_7ZIP.equals(method)) compressAs7Zip(srcFile, level, pis);
+        File srcFile = new File(srcFilePath);
+        if (METHOD_ZIP.equals(method)) compressAsZip(srcFile, level, pipedReader);
+        else if (METHOD_7ZIP.equals(method)) compressAs7Zip(srcFile, level, pipedReader);
         else throw new RuntimeException("unsupported compress method");
     }
 
@@ -34,7 +35,7 @@ public final class CompressUtil
             pos = new PipedOutputStream(pis);
             zos = new ZipOutputStream(pos);
             zos.setLevel(5);
-            zos.putNextEntry(new ZipEntry("segment"));
+            zos.putNextEntry(new ZipEntry(srcFile.getAbsolutePath()));
             int len = -1;
             byte[] block = new byte[4196];
             while ((len = fis.read(block)) > -1)
@@ -57,40 +58,5 @@ public final class CompressUtil
     private static void compressAs7Zip(File srcFile, int level, PipedInputStream pis)
     {
         return;
-    }
-
-    public static void main(String[] args) throws Exception
-    {
-        Configs.init("/conf.properties");
-
-        File srcFile = new File("E:\\test\\test.dat");
-        System.out.println(srcFile.length());
-        final PipedInputStream pis = new PipedInputStream(4096);
-
-        new Thread()
-        {
-            public void run()
-            {
-                try
-                {
-                    FileOutputStream fos = new FileOutputStream("E:\\test\\fuckoff.zip");
-
-                    int len = -1;
-                    byte[] block = new byte[4096];
-                    while ((len = pis.read(block)) > -1)
-                    {
-                        fos.write(block, 0, len);
-                    }
-                    fos.close();
-                    pis.close();
-                }
-                catch(Exception e)
-                {
-                    e.printStackTrace();
-                }
-            }
-        }.start();
-
-        compressAndWriteTo(srcFile, 5, METHOD_ZIP, pis);
     }
 }
