@@ -2,6 +2,7 @@ package cn.org.hentai.squeeze.sender;
 
 import cn.org.hentai.squeeze.sender.util.Configs;
 import cn.org.hentai.squeeze.sender.util.FileTraverser;
+import cn.org.hentai.squeeze.sender.worker.CompressorManager;
 import cn.org.hentai.squeeze.sender.worker.FileTransfer;
 
 import java.io.File;
@@ -54,8 +55,15 @@ public class Sender
         }
         if (srcFiles.size() == 0) { showErrorAndExit("missing source file(s) parameter"); showHelpAndExit(6); return; }
 
-        // 启动压缩线程、传输线程
-        new FileTransfer(receiverAddress).start();
+        int BPS = -1;
+        if (bandWidth != null)
+        {
+            BPS = Integer.parseInt(bandWidth.replaceAll("(?is)^(\\d+)(kmg)$", "$1"));
+            char unit = bandWidth.charAt(bandWidth.length() - 1);
+            BPS *= (unit == 'k' ? 1024 : unit == 'm' ? 1024 * 1024 : unit == 'g' ? 1024 * 1024 * 1024 : 1);
+        }
+
+        CompressorManager compressorManager = CompressorManager.init(method, threads, level, BPS, receiverAddress);
 
         // TODO: 支持文件通配符
         FileTraverser.Callback fileSeeker = new FileTraverser.Callback()
@@ -63,7 +71,7 @@ public class Sender
             @Override
             public void found(File file)
             {
-                System.out.println("Found: " + file.getAbsolutePath());
+                compressorManager.addFile(file.getAbsolutePath());
             }
         };
         for (String filePath : srcFiles)
