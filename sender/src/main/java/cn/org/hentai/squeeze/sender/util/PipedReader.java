@@ -27,7 +27,15 @@ public class PipedReader extends PipedInputStream
         readyToClose = true;
         synchronized (lock)
         {
-            while (!closed) try { lock.wait(); } catch(Exception e) { }
+            try
+            {
+                while (!closed || this.available() > 0)
+                    lock.wait();
+            }
+            catch (Exception e)
+            {
+                e.printStackTrace();
+            }
         }
     }
 
@@ -36,6 +44,7 @@ public class PipedReader extends PipedInputStream
     {
         super.close();
         closed = true;
+        readyToClose = false;
         synchronized (lock)
         {
             lock.notifyAll();

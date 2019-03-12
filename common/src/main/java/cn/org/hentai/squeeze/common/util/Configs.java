@@ -1,4 +1,4 @@
-package cn.org.hentai.squeeze.sender.util;
+package cn.org.hentai.squeeze.common.util;
 
 import java.io.IOException;
 import java.util.Properties;

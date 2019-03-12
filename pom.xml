@@ -11,6 +11,7 @@
     <modules>
         <module>receiver</module>
         <module>sender</module>
+        <module>common</module>
     </modules>
 
     <build>

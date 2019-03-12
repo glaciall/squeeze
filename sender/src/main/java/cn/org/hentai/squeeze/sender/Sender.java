@@ -1,14 +1,11 @@
 package cn.org.hentai.squeeze.sender;
 
-import cn.org.hentai.squeeze.sender.util.Configs;
+import cn.org.hentai.squeeze.common.util.Configs;
 import cn.org.hentai.squeeze.sender.util.FileTraverser;
 import cn.org.hentai.squeeze.sender.worker.CompressorManager;
-import cn.org.hentai.squeeze.sender.worker.FileTransfer;
 
 import java.io.File;
-import java.net.InetAddress;
 import java.net.InetSocketAddress;
-import java.net.UnknownHostException;
 import java.util.LinkedList;
 
 /**
@@ -58,8 +55,8 @@ public class Sender
         int BPS = -1;
         if (bandWidth != null)
         {
-            BPS = Integer.parseInt(bandWidth.replaceAll("(?is)^(\\d+)(kmg)$", "$1"));
-            char unit = bandWidth.charAt(bandWidth.length() - 1);
+            BPS = Integer.parseInt(bandWidth.replaceAll("(?is)^(\\d+)([kmg])$", "$1"));
+            char unit = Character.toLowerCase(bandWidth.charAt(bandWidth.length() - 1));
             BPS *= (unit == 'k' ? 1024 : unit == 'm' ? 1024 * 1024 : unit == 'g' ? 1024 * 1024 * 1024 : 1);
         }
 

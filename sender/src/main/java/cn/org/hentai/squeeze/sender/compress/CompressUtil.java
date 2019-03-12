@@ -1,11 +1,7 @@
 package cn.org.hentai.squeeze.sender.compress;
 
-import cn.org.hentai.squeeze.sender.util.Configs;
-import com.sun.xml.internal.messaging.saaj.util.ByteInputStream;
-
 import java.io.*;
 import java.util.zip.ZipEntry;
-import java.util.zip.ZipInputStream;
 import java.util.zip.ZipOutputStream;
 
 /**
@@ -42,6 +38,7 @@ public final class CompressUtil
             {
                 zos.write(block, 0, len);
             }
+            zos.flush();
         }
         catch(Exception e)
         {

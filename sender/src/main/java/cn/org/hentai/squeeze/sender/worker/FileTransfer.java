@@ -1,17 +1,25 @@
 package cn.org.hentai.squeeze.sender.worker;
 
+import cn.org.hentai.squeeze.common.protocol.Command;
+import cn.org.hentai.squeeze.common.util.ByteUtils;
 import cn.org.hentai.squeeze.sender.util.PipedReader;
 
+import java.io.BufferedInputStream;
+import java.io.BufferedOutputStream;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.net.SocketAddress;
+
+import static cn.org.hentai.squeeze.common.error.ExitCode.NETWORK_ERROR;
 
 /**
  * Created by matrixy on 2019/3/11.
  */
 public class FileTransfer extends Thread
 {
+    static final byte[] PACKET_HEADER_FLAG = new byte[] { (byte)0xAA, (byte)0xAB };
+
     private int bandwidthBps;
     private InetSocketAddress receiverAddress;
     private CompressorManager manager;
@@ -21,27 +29,50 @@ public class FileTransfer extends Thread
         this.manager = manager;
         this.bandwidthBps = bandwidthInBytesPerSecond;
         this.receiverAddress = receiver;
+
+        this.setName("file-transfer");
     }
 
     public void run()
     {
+        Socket socket = null;
+        BufferedInputStream bis = null;
+        BufferedOutputStream bos = null;
+
         try
         {
             // 连接到接收方
-            Socket socket = new Socket();
+            socket = new Socket();
+            socket.setSoTimeout(5000);
+            socket.setReceiveBufferSize(40960);
+            socket.setSendBufferSize(40960);
+            socket.connect(receiverAddress);
+            bis = new BufferedInputStream(socket.getInputStream(), 1024 * 100);
+            bos = new BufferedOutputStream(socket.getOutputStream(), 1024 * 100);
 
             int sendBytes = 0;
+            long stime = System.currentTimeMillis();
+            byte[] buff = new byte[4096];
             while (true)
             {
                 // 遍历全部管道
-                for (;;)
+                int i = 0;
+                long lTime = System.nanoTime();
+                for (PipedReader pipedReader : manager.getPipedReaders())
                 {
-                    PipedReader pipedReader = null;
+                    long fileId = manager.getFileId(i++);
                     if (null == pipedReader) continue;
 
                     if (pipedReader.isCloseReady())
                     {
                         // 发送单个文件结束消息包
+                        bos.write(PACKET_HEADER_FLAG);
+                        bos.write(Command.SEND_FILE_EOF);
+                        bos.write(0x00);
+                        bos.write(0x00);
+                        bos.write(ByteUtils.toBytes(fileId));
+                        // TODO: 发送原始内容MD5指纹
+                        bos.flush();
                         pipedReader.close();
                         continue;
                     }
@@ -49,18 +80,49 @@ public class FileTransfer extends Thread
                     if (bytesReady > 0)
                     {
                         // 发送一个包
-                        // 计算一下已经发送了多少字节了，以及从置零起，过去了多长时间，估算一下单位时间内的发送字节数，限制一下流量
+                        int len = pipedReader.read(buff, 0, Math.min(bytesReady, buff.length));
+                        int pLen = len + 8;
+                        bos.write(PACKET_HEADER_FLAG);                 // 协议头
+                        bos.write(Command.SEND_FILE_SEGMENT);
+                        bos.write((pLen >> 8) & 0xff);              // 消息体长度，两字节
+                        bos.write(pLen & 0xff);
+                        bos.write(ByteUtils.toBytes(fileId));          // file id
+                        bos.write(buff, 0, len);                   // 压缩数据片断
+
+                        // 每秒发送字节量控制
+                        sendBytes += bytesReady;
+                        long now = System.currentTimeMillis();
+                        if (now - stime >= 1000)
+                        {
+                            System.out.println(String.format("Speed: %d KB/s", (sendBytes / 1024)));
+                            sendBytes = 0;
+                            stime = System.currentTimeMillis();
+                            continue;
+                        }
+
+                        if (sendBytes >= bandwidthBps)
+                        {
+                            bos.flush();
+                            Thread.sleep(1000 - (now - stime));
+                            sendBytes = 0;
+                            stime = System.currentTimeMillis();
+                        }
                     }
                 }
+
+                // if (System.nanoTime() - lTime < 1000) Thread.sleep(0, 100);
             }
-
-            // 如果管道流已经关闭，则
-
-            // 带宽控制
         }
         catch(Exception ex)
         {
             ex.printStackTrace();
+            System.exit(NETWORK_ERROR);
+        }
+        finally
+        {
+            try { bis.close(); } catch(Exception e) { }
+            try { bos.close(); } catch(Exception e) { }
+            try { socket.close(); } catch(Exception e) { }
         }
     }
 }

@@ -22,6 +22,8 @@ public class FileCompressor extends Thread
         this.manager = manager;
         this.method = method;
         this.level = level;
+
+        this.setName("compressor-" + index);
     }
 
     public void run()
@@ -31,12 +33,14 @@ public class FileCompressor extends Thread
             try
             {
                 CompressorManager.DataFile file = manager.getFile();
+                System.out.println(String.format("Compressor[%6d - %6d]: %s", index, file.id, file.path));
                 pipedReader = new PipedReader(40960);
                 manager.watchStream(index, file.id, pipedReader);
                 CompressUtil.compressAndConvertTo(file.path, level, method, pipedReader);
 
                 pipedReader.waitForClose();
                 pipedReader = null;
+                manager.unwatchStream(index);
             }
             catch(Exception ex)
             {
