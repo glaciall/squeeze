@@ -60,9 +60,15 @@ public class Sender
             BPS *= (unit == 'k' ? 1024 : unit == 'm' ? 1024 * 1024 : unit == 'g' ? 1024 * 1024 * 1024 : 1);
         }
 
-        CompressorManager compressorManager = CompressorManager.init(method, threads, level, BPS, receiverAddress);
+        System.out.println("Starting compress and transfer...");
+        System.out.println();
+        System.out.println("Compress Method: " + method);
+        System.out.println("Compress Level : " + (level == -1 ? "--" : level));
+        System.out.println("Bandwidth Limit: " + (BPS == -1 ? "unlimited" : bandWidth + "B/S"));
+        System.out.println("Thread Count   : " + threads);
+        System.out.println("Receiver       : " + receiver);
 
-        // TODO: 支持文件通配符
+        CompressorManager compressorManager = CompressorManager.init(method, threads, level, BPS, receiverAddress);
         FileTraverser.Callback fileSeeker = new FileTraverser.Callback()
         {
             @Override
@@ -76,6 +82,7 @@ public class Sender
             File file = new File(filePath);
             FileTraverser.traverse(file, fileSeeker);
         }
+        compressorManager.start();
     }
 
     private static int getIntArgument(String[] args, String prefix, int defaultValue)

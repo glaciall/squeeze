@@ -1,5 +1,6 @@
 package cn.org.hentai.squeeze.sender.worker;
 
+import cn.org.hentai.squeeze.common.util.BPSUnit;
 import cn.org.hentai.squeeze.sender.util.PipedReader;
 
 import java.io.PipedInputStream;
@@ -19,6 +20,9 @@ public class CompressorManager
 
     Object lock = new Object();
 
+    private char[] lineBuff;
+    private int totalFileCount = 0, sendFileCount = 0;
+
     FileCompressor[] fileCompressors;
     FileTransfer fileTransfer;
     long[] fileIds;
@@ -26,6 +30,9 @@ public class CompressorManager
 
     private CompressorManager(String method, int threads, int level, int bandWidthInBytesPerSecond, InetSocketAddress receiverAddress)
     {
+        this.lineBuff = new char[67];
+        this.lineBuff[66] = '\r';
+
         files = new LinkedList<>();
         fileCompressors = new FileCompressor[threads];
         pipedReaders = new PipedReader[threads];
@@ -33,9 +40,17 @@ public class CompressorManager
         for (int i = 0; i < threads; i++)
         {
             fileCompressors[i] = new FileCompressor(i, this, method, level);
-            fileCompressors[i].start();
         }
         fileTransfer = new FileTransfer(this, bandWidthInBytesPerSecond, receiverAddress);
+
+    }
+
+    public void start()
+    {
+        for (FileCompressor compressor : fileCompressors)
+        {
+            compressor.start();
+        }
         fileTransfer.start();
     }
 
@@ -50,6 +65,7 @@ public class CompressorManager
         {
             files.add(new DataFile(sequence++, filePath));
             files.notifyAll();
+            totalFileCount += 1;
         }
     }
 
@@ -77,7 +93,13 @@ public class CompressorManager
         {
             pipedReaders[index] = null;
             fileIds[index] = 0L;
+            sendFileCount += 1;
         }
+    }
+
+    public boolean transferCompleted()
+    {
+        return sendFileCount == totalFileCount;
     }
 
     public PipedReader[] getPipedReaders()
@@ -94,6 +116,27 @@ public class CompressorManager
         {
             return fileIds[index];
         }
+    }
+
+    public void showStatus(int BPS)
+    {
+        int compressRatio = 0;
+        String c = String.valueOf(totalFileCount);
+        String s = String.valueOf(sendFileCount);
+        String r = String.valueOf(compressRatio + "%");
+        String b = BPSUnit.convert(BPS);
+        Arrays.fill(lineBuff, 1, 64, ' ');
+        lineBuff[0] = '|';
+        lineBuff[17] = '|';
+        lineBuff[29] = '|';
+        lineBuff[48] = '|';
+        lineBuff[63] = '|';
+        System.arraycopy(c.toCharArray(), 0, lineBuff, 18 / 2 - c.length() + 1, c.length());
+        System.arraycopy(s.toCharArray(), 0, lineBuff, 18 / 2 - s.length() + 1 + 16, s.length());
+        System.arraycopy(r.toCharArray(), 0, lineBuff, 20 / 2 - r.length() + 1 + 16 + 12, r.length());
+        System.arraycopy(b.toCharArray(), 0, lineBuff, 20 / 2 - b.length() + 1 + 16 + 12 + 18, b.length());
+        // System.out.print(lineBuff);
+        System.out.print(new String(lineBuff));
     }
 
     static class DataFile

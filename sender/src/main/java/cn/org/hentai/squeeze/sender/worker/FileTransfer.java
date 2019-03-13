@@ -1,6 +1,7 @@
 package cn.org.hentai.squeeze.sender.worker;
 
 import cn.org.hentai.squeeze.common.protocol.Command;
+import cn.org.hentai.squeeze.common.util.BPSUnit;
 import cn.org.hentai.squeeze.common.util.ByteUtils;
 import cn.org.hentai.squeeze.sender.util.PipedReader;
 
@@ -10,6 +11,7 @@ import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.net.SocketAddress;
+import java.util.Arrays;
 
 import static cn.org.hentai.squeeze.common.error.ExitCode.NETWORK_ERROR;
 
@@ -49,6 +51,11 @@ public class FileTransfer extends Thread
             socket.connect(receiverAddress);
             bis = new BufferedInputStream(socket.getInputStream(), 1024 * 100);
             bos = new BufferedOutputStream(socket.getOutputStream(), 1024 * 100);
+
+            System.out.println();
+            System.out.println("|--------------------------------------------------------------|");
+            System.out.println("|   Total Files  |    Send   |  Compress Ratio  |     Speed    |");
+            System.out.println("|--------------------------------------------------------------|");
 
             int sendBytes = 0;
             long stime = System.currentTimeMillis();
@@ -94,7 +101,6 @@ public class FileTransfer extends Thread
                         long now = System.currentTimeMillis();
                         if (now - stime >= 1000)
                         {
-                            System.out.println(String.format("Speed: %d KB/s", (sendBytes / 1024)));
                             sendBytes = 0;
                             stime = System.currentTimeMillis();
                             continue;
@@ -109,8 +115,15 @@ public class FileTransfer extends Thread
                         }
                     }
                 }
-
-                // if (System.nanoTime() - lTime < 1000) Thread.sleep(0, 100);
+                manager.showStatus(sendBytes);
+                if (manager.transferCompleted())
+                {
+                    System.out.println();
+                    System.out.println();
+                    System.out.println("File(s) transfer completed.");
+                    System.exit(0);
+                    return;
+                }
             }
         }
         catch(Exception ex)
