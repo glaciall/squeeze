@@ -1,5 +1,7 @@
 package cn.org.hentai.squeeze.common.util;
 
+import java.io.File;
+import java.io.FileInputStream;
 import java.io.IOException;
 import java.util.Properties;
 
@@ -14,7 +16,9 @@ public final class Configs
     {
         try
         {
-            properties.load(Configs.class.getResourceAsStream(configFilePath));
+            File file = new File((configFilePath.startsWith("/") ? "." : "") + configFilePath);
+            if (file.exists()) properties.load(new FileInputStream(file));
+            else properties.load(Configs.class.getResourceAsStream(configFilePath));
         }
         catch (IOException e)
         {
@@ -29,16 +33,10 @@ public final class Configs
         else return String.valueOf(val).trim();
     }
 
-    public static String get(String key, String defaultVal)
-    {
-        Object val = properties.get(key);
-        if (null == val) return defaultVal;
-        else return String.valueOf(val).trim();
-    }
-
     public static int getInt(String key, int defaultVal)
     {
-        String val = get(key, String.valueOf(defaultVal));
-        return Integer.parseInt(val);
+        String val = get(key);
+        if (null == val) return defaultVal;
+        else return Integer.parseInt(val);
     }
 }
