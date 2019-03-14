@@ -3,7 +3,7 @@ package cn.org.hentai.squeeze.common.util;
 /**
  * Created by matrixy on 2019/3/13.
  */
-public final class BPSUnit
+public final class BytesUnit
 {
     public static String convert(int BPS)
     {
