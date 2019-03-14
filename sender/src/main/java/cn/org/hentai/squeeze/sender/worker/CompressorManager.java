@@ -134,8 +134,7 @@ public class CompressorManager
         System.arraycopy(c.toCharArray(), 0, lineBuff, 18 / 2 - c.length() + 1, c.length());
         System.arraycopy(s.toCharArray(), 0, lineBuff, 18 / 2 - s.length() + 1 + 16, s.length());
         System.arraycopy(r.toCharArray(), 0, lineBuff, 20 / 2 - r.length() + 1 + 16 + 12, r.length());
-        System.arraycopy(b.toCharArray(), 0, lineBuff, 20 / 2 - b.length() + 1 + 16 + 12 + 18, b.length());
-        // System.out.print(lineBuff);
+        System.arraycopy(b.toCharArray(), 0, lineBuff, 24 / 2 - b.length() + 1 + 16 + 12 + 18, b.length());
         System.out.print(new String(lineBuff));
     }
 
