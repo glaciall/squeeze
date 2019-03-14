@@ -65,6 +65,7 @@ public class FileTransfer extends Thread
                 // 遍历全部管道
                 int i = 0;
                 long lTime = System.nanoTime();
+                int bps = bandwidthBps / 5;
                 for (PipedReader pipedReader : manager.getPipedReaders())
                 {
                     long fileId = manager.getFileId(i++);
@@ -81,6 +82,8 @@ public class FileTransfer extends Thread
                         // TODO: 发送原始内容MD5指纹
                         bos.flush();
                         pipedReader.close();
+
+                        manager.showStatus(sendBytes * 5);
                         continue;
                     }
                     int bytesReady = pipedReader.available();
@@ -99,23 +102,24 @@ public class FileTransfer extends Thread
                         // 每秒发送字节量控制
                         sendBytes += bytesReady;
                         long now = System.currentTimeMillis();
-                        if (now - stime >= 1000)
+                        if (now - stime >= 200)
                         {
+                            manager.showStatus(sendBytes * 5);
                             sendBytes = 0;
                             stime = System.currentTimeMillis();
                             continue;
                         }
 
-                        if (sendBytes >= bandwidthBps)
+                        if (sendBytes >= bps)
                         {
                             bos.flush();
-                            Thread.sleep(1000 - (now - stime));
+                            manager.showStatus(sendBytes * 5);
+                            Thread.sleep(200 - (now - stime));
                             sendBytes = 0;
                             stime = System.currentTimeMillis();
                         }
                     }
                 }
-                manager.showStatus(sendBytes);
                 if (manager.transferCompleted())
                 {
                     System.out.println();
