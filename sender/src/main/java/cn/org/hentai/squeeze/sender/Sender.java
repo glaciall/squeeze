@@ -1,5 +1,6 @@
 package cn.org.hentai.squeeze.sender;
 
+import cn.org.hentai.squeeze.common.util.BytesUnit;
 import cn.org.hentai.squeeze.common.util.Configs;
 import cn.org.hentai.squeeze.sender.util.FileTraverser;
 import cn.org.hentai.squeeze.sender.worker.CompressorManager;
@@ -62,11 +63,11 @@ public class Sender
 
         System.out.println("Starting compress and transfer...");
         System.out.println();
-        System.out.println("Compress Method: " + method);
-        System.out.println("Compress Level : " + (level == -1 ? "--" : level));
-        System.out.println("Bandwidth Limit: " + (BPS == -1 ? "unlimited" : bandWidth + "B/S"));
-        System.out.println("Thread Count   : " + threads);
-        System.out.println("Receiver       : " + receiver);
+        System.out.println("Compress Method  : " + method);
+        System.out.println("Compress Level   : " + (level == -1 ? "--" : level));
+        System.out.println("Bandwidth Limit  : " + (BPS == -1 ? "unlimited" : bandWidth + "B/S"));
+        System.out.println("Thread Count     : " + threads);
+        System.out.println("Receiver         : " + receiver);
 
         CompressorManager compressorManager = CompressorManager.init(method, threads, level, BPS, receiverAddress);
         FileTraverser.Callback fileSeeker = new FileTraverser.Callback()
@@ -74,7 +75,7 @@ public class Sender
             @Override
             public void found(File file)
             {
-                compressorManager.addFile(file.getAbsolutePath());
+                compressorManager.addFile(file.getAbsolutePath(), file.length());
             }
         };
         for (String filePath : srcFiles)
@@ -82,6 +83,11 @@ public class Sender
             File file = new File(filePath);
             FileTraverser.traverse(file, fileSeeker);
         }
+
+        //////////////////////////////////////
+        System.out.println("Total Files      : " + compressorManager.getTotalFileCount());
+        System.out.println("Total File Bytes : " + BytesUnit.convert(compressorManager.getTotalFileBytes()));
+
         compressorManager.start();
     }
 

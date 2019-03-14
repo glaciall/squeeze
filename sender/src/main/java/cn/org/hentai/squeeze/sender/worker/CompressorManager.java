@@ -1,13 +1,11 @@
 package cn.org.hentai.squeeze.sender.worker;
 
-import cn.org.hentai.squeeze.common.util.BPSUnit;
+import cn.org.hentai.squeeze.common.util.BytesUnit;
 import cn.org.hentai.squeeze.sender.util.PipedReader;
 
-import java.io.PipedInputStream;
 import java.net.InetSocketAddress;
 import java.util.Arrays;
 import java.util.LinkedList;
-import java.util.concurrent.LinkedBlockingQueue;
 
 /**
  * Created by matrixy on 2019/3/11.
@@ -22,6 +20,7 @@ public class CompressorManager
 
     private char[] lineBuff;
     private int totalFileCount = 0, sendFileCount = 0;
+    private long totalFileBytes = 0L;
 
     FileCompressor[] fileCompressors;
     FileTransfer fileTransfer;
@@ -59,13 +58,14 @@ public class CompressorManager
         return new CompressorManager(method, threads, level, bandWidthInBytesPerSecond, receiverAddress);
     }
 
-    public void addFile(String filePath)
+    public void addFile(String filePath, long fileBytes)
     {
         synchronized (files)
         {
             files.add(new DataFile(sequence++, filePath));
             files.notifyAll();
             totalFileCount += 1;
+            totalFileBytes += fileBytes;
         }
     }
 
@@ -76,6 +76,16 @@ public class CompressorManager
             while (files.size() == 0) try { files.wait(); } catch(Exception e) { }
             return files.removeFirst();
         }
+    }
+
+    public int getTotalFileCount()
+    {
+        return totalFileCount;
+    }
+
+    public long getTotalFileBytes()
+    {
+        return totalFileBytes;
     }
 
     public void watchStream(int index, long fileId, PipedReader pipedReader)
@@ -118,23 +128,22 @@ public class CompressorManager
         }
     }
 
-    public void showStatus(int BPS)
+    public void showStatus(int BPS, long totalSendBytes)
     {
-        int compressRatio = 0;
         String c = String.valueOf(totalFileCount);
         String s = String.valueOf(sendFileCount);
-        String r = String.valueOf(compressRatio + "%");
-        String b = BPSUnit.convert(BPS);
+        String t = BytesUnit.convert(totalSendBytes);
+        String b = BytesUnit.convert(BPS);
         Arrays.fill(lineBuff, 1, 64, ' ');
         lineBuff[0] = '|';
         lineBuff[17] = '|';
-        lineBuff[29] = '|';
-        lineBuff[48] = '|';
+        lineBuff[34] = '|';
+        lineBuff[50] = '|';
         lineBuff[63] = '|';
-        System.arraycopy(c.toCharArray(), 0, lineBuff, 18 / 2 - c.length() + 1, c.length());
-        System.arraycopy(s.toCharArray(), 0, lineBuff, 18 / 2 - s.length() + 1 + 16, s.length());
-        System.arraycopy(r.toCharArray(), 0, lineBuff, 20 / 2 - r.length() + 1 + 16 + 12, r.length());
-        System.arraycopy(b.toCharArray(), 0, lineBuff, 24 / 2 - b.length() + 1 + 16 + 12 + 18, b.length());
+        System.arraycopy(c.toCharArray(), 0, lineBuff, 22 / 2 - c.length() + 1, c.length());
+        System.arraycopy(s.toCharArray(), 0, lineBuff, 22 / 2 - s.length() + 1 + 16, s.length());
+        System.arraycopy(t.toCharArray(), 0, lineBuff, 20 / 2 - t.length() + 1 + 16 + 18, t.length());
+        System.arraycopy(b.toCharArray(), 0, lineBuff, 20 / 2 - b.length() + 1 + 16 + 12 + 21, b.length());
         System.out.print(new String(lineBuff));
     }
 

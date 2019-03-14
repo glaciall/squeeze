@@ -1,17 +1,13 @@
 package cn.org.hentai.squeeze.sender.worker;
 
 import cn.org.hentai.squeeze.common.protocol.Command;
-import cn.org.hentai.squeeze.common.util.BPSUnit;
 import cn.org.hentai.squeeze.common.util.ByteUtils;
 import cn.org.hentai.squeeze.sender.util.PipedReader;
 
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
-import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.Socket;
-import java.net.SocketAddress;
-import java.util.Arrays;
 
 import static cn.org.hentai.squeeze.common.error.ExitCode.NETWORK_ERROR;
 
@@ -54,18 +50,18 @@ public class FileTransfer extends Thread
 
             System.out.println();
             System.out.println("|--------------------------------------------------------------|");
-            System.out.println("|   Total Files  |    Send   |  Compress Ratio  |     Speed    |");
+            System.out.println("|   Total Files  |    Send Files  |   Send Bytes  |    Speed   |");
             System.out.println("|--------------------------------------------------------------|");
 
             int sendBytes = 0;
+            long totalSendBytes = 0;
             long stime = System.currentTimeMillis();
             byte[] buff = new byte[4096];
             while (true)
             {
                 // 遍历全部管道
                 int i = 0;
-                long lTime = System.nanoTime();
-                int bps = bandwidthBps / 5;
+                int bps = bandwidthBps;
                 for (PipedReader pipedReader : manager.getPipedReaders())
                 {
                     long fileId = manager.getFileId(i++);
@@ -83,7 +79,7 @@ public class FileTransfer extends Thread
                         bos.flush();
                         pipedReader.close();
 
-                        manager.showStatus(sendBytes * 5);
+                        manager.showStatus(sendBytes, totalSendBytes);
                         continue;
                     }
                     int bytesReady = pipedReader.available();
@@ -100,11 +96,12 @@ public class FileTransfer extends Thread
                         bos.write(buff, 0, len);                   // 压缩数据片断
 
                         // 每秒发送字节量控制
-                        sendBytes += bytesReady;
+                        sendBytes += len;
+                        totalSendBytes += len;
                         long now = System.currentTimeMillis();
-                        if (now - stime >= 200)
+                        if (now - stime >= 1000)
                         {
-                            manager.showStatus(sendBytes * 5);
+                            manager.showStatus(sendBytes, totalSendBytes);
                             sendBytes = 0;
                             stime = System.currentTimeMillis();
                             continue;
@@ -113,8 +110,8 @@ public class FileTransfer extends Thread
                         if (sendBytes >= bps)
                         {
                             bos.flush();
-                            manager.showStatus(sendBytes * 5);
-                            Thread.sleep(200 - (now - stime));
+                            manager.showStatus(sendBytes, totalSendBytes);
+                            Thread.sleep(1000 - (now - stime));
                             sendBytes = 0;
                             stime = System.currentTimeMillis();
                         }
