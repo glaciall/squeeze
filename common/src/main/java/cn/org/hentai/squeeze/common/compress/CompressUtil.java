@@ -1,4 +1,4 @@
-package cn.org.hentai.squeeze.sender.compress;
+package cn.org.hentai.squeeze.common.compress;
 
 import java.io.*;
 import java.util.zip.ZipEntry;
@@ -9,14 +9,11 @@ import java.util.zip.ZipOutputStream;
  */
 public final class CompressUtil
 {
-    public static final String METHOD_ZIP = "zip";
-    public static final String METHOD_7ZIP = "7zip";
-
     public static void compressAndConvertTo(String srcFilePath, int level, String method, PipedInputStream pipedReader)
     {
         File srcFile = new File(srcFilePath);
-        if (METHOD_ZIP.equals(method)) compressAsZip(srcFile, level, pipedReader);
-        else if (METHOD_7ZIP.equals(method)) compressAs7Zip(srcFile, level, pipedReader);
+        if (CompressMethod.zip.name().equals(method)) compressAsZip(srcFile, level, pipedReader);
+        else if (CompressMethod.sevenZip.name().equals(method)) compressAs7Zip(srcFile, level, pipedReader);
         else throw new RuntimeException("unsupported compress method");
     }
 
@@ -33,7 +30,7 @@ public final class CompressUtil
             zos.setLevel(5);
             zos.putNextEntry(new ZipEntry(srcFile.getAbsolutePath()));
             int len = -1;
-            byte[] block = new byte[4196];
+            byte[] block = new byte[4096];
             while ((len = fis.read(block)) > -1)
             {
                 zos.write(block, 0, len);
