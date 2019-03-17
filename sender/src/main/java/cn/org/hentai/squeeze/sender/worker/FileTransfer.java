@@ -1,7 +1,11 @@
 package cn.org.hentai.squeeze.sender.worker;
 
 import cn.org.hentai.squeeze.common.protocol.Command;
+import cn.org.hentai.squeeze.common.protocol.Packet;
 import cn.org.hentai.squeeze.common.util.ByteUtils;
+import cn.org.hentai.squeeze.common.util.Configs;
+import cn.org.hentai.squeeze.common.util.MD5;
+import cn.org.hentai.squeeze.common.util.Nonce;
 import cn.org.hentai.squeeze.sender.util.PipedReader;
 
 import java.io.BufferedInputStream;
@@ -49,6 +53,33 @@ public class FileTransfer extends Thread
             bos = new BufferedOutputStream(socket.getOutputStream(), 1024 * 100);
 
             System.out.println();
+
+            // 先完成与服务器端的通信验证
+            // 消息头[2] | 指令[1] | 消息体长度[2] | 文件id[8] | 消息体[n]
+            String nonce = Nonce.generate(32);
+            Packet auth = Packet.create(13 + 64)
+                    .addBytes(PACKET_HEADER_FLAG)
+                    .addByte(Command.AUTHENTICATION)
+                    .addShort((short)32)
+                    .addLong(0L)
+                    .addBytes(nonce.getBytes())
+                    .addBytes(MD5.encode(nonce + ":::" + Configs.get("transfer-key")).getBytes());
+            bos.write(auth.getBytes());
+            bos.flush();
+
+            if ((bis.read() & 0xff) == 0xAA && (bis.read() & 0xff) == 0xAB && (bis.read() & 0xff) == (int)Command.AUTHENTICATION);
+            else
+            {
+                System.err.println("invalid protocol response");
+                System.exit(10);
+            }
+            for (int i = 0; i < 10; i++) bis.read();
+            if (bis.read() != 0x00)
+            {
+                System.err.println("invalid transfer key");
+                System.exit(11);
+            }
+
             System.out.println("|--------------------------------------------------------------|");
             System.out.println("|   Total Files  |    Send Files  |   Send Bytes  |    Speed   |");
             System.out.println("|--------------------------------------------------------------|");

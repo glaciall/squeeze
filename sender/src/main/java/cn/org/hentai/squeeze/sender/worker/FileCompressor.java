@@ -1,9 +1,7 @@
 package cn.org.hentai.squeeze.sender.worker;
 
-import cn.org.hentai.squeeze.sender.compress.CompressUtil;
+import cn.org.hentai.squeeze.common.compress.CompressUtil;
 import cn.org.hentai.squeeze.sender.util.PipedReader;
-
-import java.io.PipedInputStream;
 
 /**
  * Created by matrixy on 2019/3/11.
