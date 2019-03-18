@@ -10,7 +10,6 @@ import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
 import java.io.InputStream;
 import java.net.Socket;
-import java.util.Arrays;
 
 /**
  * Created by matrixy on 2019/3/17.
@@ -52,10 +51,17 @@ public class TransferSession extends Thread
             bos.flush();
             if (result != 0x00) return;
 
-            while (true)
+            while (!this.isInterrupted())
             {
                 Packet data = read(bis);
                 // 分发到多个线程中进行解压或是直接保存到文件
+
+                if (data != null)
+                {
+                    DecompressManager.getInstance().dispatch(data);
+                    continue;
+                }
+                Thread.sleep(1);
             }
         }
         catch(Exception ex)
