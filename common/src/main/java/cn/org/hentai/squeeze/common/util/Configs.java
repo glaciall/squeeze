@@ -28,8 +28,13 @@ public final class Configs
 
     public static String get(String key)
     {
+        return get(key, null);
+    }
+
+    public static String get(String key, String defaultVal)
+    {
         Object val = properties.get(key);
-        if (null == val) return null;
+        if (null == val) return defaultVal;
         else return String.valueOf(val).trim();
     }
 
