@@ -2,6 +2,8 @@ package cn.org.hentai.squeeze.sender.worker;
 
 import cn.org.hentai.squeeze.common.protocol.Command;
 import cn.org.hentai.squeeze.common.protocol.Packet;
+import cn.org.hentai.squeeze.common.protocol.PacketDecoder;
+import cn.org.hentai.squeeze.common.protocol.PacketEncoder;
 import cn.org.hentai.squeeze.common.util.ByteUtils;
 import cn.org.hentai.squeeze.common.util.Configs;
 import cn.org.hentai.squeeze.common.util.MD5;
@@ -10,8 +12,11 @@ import cn.org.hentai.squeeze.sender.util.PipedReader;
 
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.net.InetSocketAddress;
 import java.net.Socket;
+import java.util.Arrays;
 
 import static cn.org.hentai.squeeze.common.error.ExitCode.NETWORK_ERROR;
 
@@ -25,12 +30,14 @@ public class FileTransfer extends Thread
     private int bandwidthBps;
     private InetSocketAddress receiverAddress;
     private CompressorManager manager;
+    private PacketDecoder packetDecoder;
 
     public FileTransfer(CompressorManager manager, int bandwidthInBytesPerSecond, InetSocketAddress receiver)
     {
         this.manager = manager;
         this.bandwidthBps = bandwidthInBytesPerSecond;
         this.receiverAddress = receiver;
+        this.packetDecoder = new PacketDecoder();
 
         this.setName("file-transfer");
     }
@@ -38,47 +45,37 @@ public class FileTransfer extends Thread
     public void run()
     {
         Socket socket = null;
-        BufferedInputStream bis = null;
-        BufferedOutputStream bos = null;
+        InputStream bis = null;
+        OutputStream bos = null;
 
         try
         {
             // 连接到接收方
             socket = new Socket();
             socket.setSoTimeout(5000);
-            socket.setReceiveBufferSize(40960);
-            socket.setSendBufferSize(40960);
-            socket.connect(receiverAddress);
-            bis = new BufferedInputStream(socket.getInputStream(), 1024 * 100);
-            bos = new BufferedOutputStream(socket.getOutputStream(), 1024 * 100);
+            socket.connect(receiverAddress, 5000);
+            bis = socket.getInputStream();
+            bos = socket.getOutputStream();
 
             System.out.println();
 
             // 先完成与服务器端的通信验证
             // 消息头[2] | 指令[1] | 消息体长度[2] | 文件id[8] | 消息体[n]
             String nonce = Nonce.generate(32);
-            Packet auth = Packet.create(13 + 64)
-                    .addBytes(PACKET_HEADER_FLAG)
-                    .addByte(Command.AUTHENTICATION)
-                    .addShort((short)32)
-                    .addLong(0L)
-                    .addBytes(nonce.getBytes())
-                    .addBytes(MD5.encode(nonce + ":::" + Configs.get("transfer-key")).getBytes());
-            bos.write(auth.getBytes());
+            byte[] auth = (nonce + MD5.encode(nonce + ":::" + Configs.get("transfer-key"))).getBytes();
+            bos.write(PacketEncoder.encode(Command.AUTHENTICATION, 0L, auth));
             bos.flush();
 
-            if ((bis.read() & 0xff) == 0xAA && (bis.read() & 0xff) == 0xAB && (bis.read() & 0xff) == (int)Command.AUTHENTICATION);
-            else
-            {
-                System.err.println("invalid protocol response");
-                System.exit(10);
-            }
-            for (int i = 0; i < 10; i++) bis.read();
-            if (bis.read() != 0x00)
+            Packet resp = null;
+            while ((resp = packetDecoder.read(bis)) == null) sleep(5);
+
+            if ((resp.seek(13).nextByte() & 0xff) != 0x00)
             {
                 System.err.println("invalid transfer key");
                 System.exit(11);
+                return;
             }
+            long sessionId = (resp.seek(5).nextLong() & 0xffffffff) << 32;
 
             System.out.println("|--------------------------------------------------------------|");
             System.out.println("|   Total Files  |    Send Files  |   Send Bytes  |    Speed   |");
@@ -95,36 +92,22 @@ public class FileTransfer extends Thread
                 int bps = bandwidthBps;
                 for (PipedReader pipedReader : manager.getPipedReaders())
                 {
-                    long fileId = manager.getFileId(i++);
+                    long fileId = sessionId | (manager.getFileId(i++) & 0xffffffff);
                     if (null == pipedReader) continue;
 
-                    if (pipedReader.isCloseReady())
-                    {
-                        // 发送单个文件结束消息包
-                        bos.write(PACKET_HEADER_FLAG);
-                        bos.write(Command.SEND_FILE_EOF);
-                        bos.write(0x00);
-                        bos.write(0x00);
-                        bos.write(ByteUtils.toBytes(fileId));
-                        // TODO: 发送原始内容MD5指纹
-                        bos.flush();
-                        pipedReader.close();
-
-                        manager.showStatus(sendBytes, totalSendBytes);
-                        continue;
-                    }
                     int bytesReady = pipedReader.available();
                     if (bytesReady > 0)
                     {
                         // 发送一个包
                         int len = pipedReader.read(buff, 0, Math.min(bytesReady, buff.length));
-                        int pLen = len + 8;
-                        bos.write(PACKET_HEADER_FLAG);                 // 协议头
-                        bos.write(Command.SEND_FILE_SEGMENT);
-                        bos.write((pLen >> 8) & 0xff);              // 消息体长度，两字节
-                        bos.write(pLen & 0xff);
-                        bos.write(ByteUtils.toBytes(fileId));          // file id
-                        bos.write(buff, 0, len);                   // 压缩数据片断
+                        byte[] block = buff;
+                        if (len != buff.length)
+                        {
+                            block = new byte[len];
+                            System.arraycopy(buff, 0, block, 0, len);
+                        }
+                        bos.write(PacketEncoder.encode(Command.SEND_FILE_SEGMENT, fileId, block));
+                        bos.flush();
 
                         // 每秒发送字节量控制
                         sendBytes += len;
@@ -146,13 +129,36 @@ public class FileTransfer extends Thread
                             sendBytes = 0;
                             stime = System.currentTimeMillis();
                         }
+                        continue;
+                    }
+
+                    if (pipedReader.isCloseReady())
+                    {
+                        // 发送单个文件结束消息包
+                        bos.write(PacketEncoder.encode(Command.SEND_FILE_EOF, fileId, new byte[32]));
+                        bos.flush();
+                        pipedReader.close();
+
+                        manager.showStatus(sendBytes, totalSendBytes);
+                        continue;
                     }
                 }
                 if (manager.transferCompleted())
                 {
+                    manager.showStatus(sendBytes, totalSendBytes);
                     System.out.println();
                     System.out.println();
-                    System.out.println("File(s) transfer completed.");
+
+                    System.out.println("File(s) transfer completed, wait for server response...");
+
+                    // 发送传输结束消息
+                    bos.write(PacketEncoder.encode(Command.TRANSFER_COMPLETED, 0L, new byte[] { 0x00 }));
+                    bos.flush();
+
+                    while ((resp = packetDecoder.read(bis)) == null) sleep(5);
+
+                    System.out.println("Done.");
+
                     System.exit(0);
                     return;
                 }

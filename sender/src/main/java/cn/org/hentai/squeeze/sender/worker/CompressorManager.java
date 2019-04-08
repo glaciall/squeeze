@@ -13,7 +13,7 @@ import java.util.LinkedList;
  */
 public class CompressorManager
 {
-    long sequence = 1;
+    int sequence = 1;
     LinkedList<DataFile> files;
 
     Object lock = new Object();
@@ -24,7 +24,7 @@ public class CompressorManager
 
     FileCompressor[] fileCompressors;
     FileTransfer fileTransfer;
-    long[] fileIds;
+    int[] fileIds;
     PipedReader[] pipedReaders;
 
     private CompressorManager(String method, int threads, int level, int bandWidthInBytesPerSecond, InetSocketAddress receiverAddress)
@@ -35,7 +35,7 @@ public class CompressorManager
         files = new LinkedList<>();
         fileCompressors = new FileCompressor[threads];
         pipedReaders = new PipedReader[threads];
-        fileIds = new long[threads];
+        fileIds = new int[threads];
         for (int i = 0; i < threads; i++)
         {
             fileCompressors[i] = new FileCompressor(i, this, method, level);
@@ -58,11 +58,11 @@ public class CompressorManager
         return new CompressorManager(method, threads, level, bandWidthInBytesPerSecond, receiverAddress);
     }
 
-    public void addFile(String filePath, long fileBytes)
+    public void addFile(String basePath, String filePath, long fileBytes)
     {
         synchronized (files)
         {
-            files.add(new DataFile(sequence++, filePath));
+            files.add(new DataFile(sequence++, filePath, basePath));
             files.notifyAll();
             totalFileCount += 1;
             totalFileBytes += fileBytes;
@@ -88,7 +88,7 @@ public class CompressorManager
         return totalFileBytes;
     }
 
-    public void watchStream(int index, long fileId, PipedReader pipedReader)
+    public void watchStream(int index, int fileId, PipedReader pipedReader)
     {
         synchronized (lock)
         {
@@ -102,7 +102,7 @@ public class CompressorManager
         synchronized (lock)
         {
             pipedReaders[index] = null;
-            fileIds[index] = 0L;
+            fileIds[index] = 0;
             sendFileCount += 1;
         }
     }
@@ -120,7 +120,7 @@ public class CompressorManager
         }
     }
 
-    public long getFileId(int index)
+    public int getFileId(int index)
     {
         synchronized (lock)
         {
@@ -149,13 +149,15 @@ public class CompressorManager
 
     static class DataFile
     {
-        public long id;
+        public int id;
         public String path;
+        public String basePath;
 
-        public DataFile(long id, String path)
+        public DataFile(int id, String path, String basePath)
         {
             this.id = id;
             this.path = path;
+            this.basePath = basePath;
         }
     }
 }

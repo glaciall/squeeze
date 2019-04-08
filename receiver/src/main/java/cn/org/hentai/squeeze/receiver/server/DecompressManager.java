@@ -12,6 +12,7 @@ public final class DecompressManager
     private DecompressManager()
     {
         int cores = Configs.getInt("unpack-thread-count", 2);
+        decompressWorkers = new PacketDecompressWorker[cores];
         for (int i = 0; i < cores; i++)
         {
             decompressWorkers[i] = new PacketDecompressWorker();

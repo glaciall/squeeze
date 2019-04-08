@@ -65,23 +65,27 @@ public class Sender
         System.out.println();
         System.out.println("Compress Method  : " + method);
         System.out.println("Compress Level   : " + (level == -1 ? "--" : level));
-        System.out.println("Bandwidth Limit  : " + (BPS == -1 ? "unlimited" : bandWidth + "B/S"));
+        System.out.println("Bandwidth Limit  : " + (BPS == -1 ? "unlimited" : bandWidth.toUpperCase() + "B/S"));
         System.out.println("Thread Count     : " + threads);
         System.out.println("Receiver         : " + receiver);
 
         CompressorManager compressorManager = CompressorManager.init(method, threads, level, BPS, receiverAddress);
-        FileTraverser.Callback fileSeeker = new FileTraverser.Callback()
-        {
-            @Override
-            public void found(File file)
-            {
-                compressorManager.addFile(file.getAbsolutePath(), file.length());
-            }
-        };
         for (String filePath : srcFiles)
         {
+            String basePath = filePath;
+            int idx = basePath.lastIndexOf(File.separator);
+            if (idx > -1) basePath = basePath.substring(0, idx + 1);
+            final String relatedPath = basePath;
+
             File file = new File(filePath);
-            FileTraverser.traverse(file, fileSeeker);
+            FileTraverser.traverse(file, new FileTraverser.Callback()
+            {
+                @Override
+                public void found(File file)
+                {
+                    compressorManager.addFile(relatedPath, file.getAbsolutePath(), file.length());
+                }
+            });
         }
 
         //////////////////////////////////////

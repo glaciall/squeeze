@@ -34,7 +34,7 @@ public class FileCompressor extends Thread
                 // System.out.println(String.format("Compressor[%6d - %6d]: %s", index, file.id, file.path));
                 pipedReader = new PipedReader(40960);
                 manager.watchStream(index, file.id, pipedReader);
-                CompressUtil.compressAndConvertTo(file.path, level, method, pipedReader);
+                CompressUtil.compressAndConvertTo(file.basePath, file.path, level, method, pipedReader);
 
                 pipedReader.waitForClose();
                 pipedReader = null;

@@ -2,17 +2,22 @@ package cn.org.hentai.squeeze.receiver;
 
 import cn.org.hentai.squeeze.common.util.Configs;
 import cn.org.hentai.squeeze.receiver.server.TransferSession;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import sun.misc.Signal;
 import sun.misc.SignalHandler;
 
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.util.Date;
 
 /**
  * Created by matrixy on 2019/3/14.
  */
 public class Receiver
 {
+    static Logger logger = LoggerFactory.getLogger(Receiver.class);
+
     public static void main(String[] args) throws Exception
     {
         Configs.init("/conf.properties");
@@ -27,6 +32,7 @@ public class Receiver
             }
         });
 
+        showBanner();
         startServer();
     }
 
@@ -36,7 +42,20 @@ public class Receiver
         while (true)
         {
             Socket socket = server.accept();
-            new TransferSession(socket).start();
+            new TransferSession(socket).handle();
         }
+    }
+
+    private static void showBanner()
+    {
+        String banner = "                                     __   \n" +
+                " _____                               \\ \\  \n" +
+                "|   __|___ _ _ ___ ___ ___ ___    ___ \\ \\ \n" +
+                "|__   | . | | | -_| -_|- _| -_|  |___| > >\n" +
+                "|_____|_  |___|___|___|___|___|       / / \n" +
+                "        |_|                          /_/  \n";
+        System.out.println(banner);
+
+        logger.info("Squeeze started at: " + new Date().toLocaleString());
     }
 }

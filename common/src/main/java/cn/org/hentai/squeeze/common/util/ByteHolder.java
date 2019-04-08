@@ -28,8 +28,10 @@ public class ByteHolder
 
     public void write(byte[] data, int offset, int length)
     {
-        if (this.offset + length >= buffer.length)
-            throw new RuntimeException(String.format("exceed the max buffer size, max length: %d, data length: %d", buffer.length, length));
+        while (this.offset + length > buffer.length)
+        {
+            try { Thread.sleep(1); } catch(Exception e) { }
+        }
 
         // 复制一下内容
         System.arraycopy(data, offset, buffer, this.offset, length);
@@ -51,6 +53,7 @@ public class ByteHolder
 
     public void sliceInto(byte[] dest, int length)
     {
+        if (length > this.size) throw new RuntimeException(String.format("exceed max length: %d / %d", length, size));
         System.arraycopy(this.buffer, 0, dest, 0, length);
         // 往前挪length个位
         System.arraycopy(this.buffer, length, this.buffer, 0, this.size - length);
@@ -85,6 +88,11 @@ public class ByteHolder
     public int getInt(int position)
     {
         return ByteUtils.getInt(this.buffer, position, 4);
+    }
+
+    public int getShort(int position)
+    {
+        return (((buffer[position] & 0xff) << 8) | (buffer[position + 1] & 0xff)) & 0xffff;
     }
 
     public void clear()
